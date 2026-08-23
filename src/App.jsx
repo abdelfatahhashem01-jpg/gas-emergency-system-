@@ -34,6 +34,38 @@ const STATUSES = [
 const sevMeta = (id) => SEVERITIES.find((s) => s.id === id) || SEVERITIES[2];
 const statusMeta = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
+// تحديد درجة الخطورة تلقائياً حسب نوع الحادثة — بدلاً من إدخالها يدوياً من
+// المُبلِّغ. القيم اجتهادية حسب خطورة كل نوع ويمكن تعديلها لاحقاً حسب سياسة الشركة.
+const INCIDENT_SEVERITY_MAP = {
+  "تسرب غاز": "1", "رائحة غاز قوية": "1", "غاز ضعيف": "2", "خط غاز مكسور": "1",
+  "انفجار غاز": "1", "حريق ناتج عن غاز": "1", "اشتباه في تسرب": "2",
+  "عطل عداد مسبق الدفع": "3", "عبث عميل": "2", "تأمين": "3",
+  "تسريب شبكة أرضية": "1", "ماس كهربائي": "2", "حريق": "1",
+  "عطل عداد ميكانيكي": "3", "إعادة تشغيل": "3", "أخرى": "2",
+};
+function autoSeverity(type) { return INCIDENT_SEVERITY_MAP[type] || "2"; }
+
+// الإجراءات القياسية ببطاقة غرفة العمليات (نموذج FP-36-01)
+const OPS_ACTIONS = [
+  { id: "confirmTenantPresence", label: "التأكد من العميل بأهمية التواجد بالشقة" },
+  { id: "thankReporter", label: "توجيه الشكر للمُبلِّغ مع التأكد من اتخاذ اللازم" },
+  { id: "confirmRepairAction", label: "التأكد بأنه سيتم اتخاذ اللازم لإصلاح الجهاز" },
+  { id: "directToAuthorities", label: "توجيه المُبلِّغ للاتصال بالجهات المختصة" },
+  { id: "closeApplianceValve", label: "إغلاق محبس الأجهزة" },
+  { id: "closeMeterValve", label: "إغلاق محبس العداد" },
+  { id: "openVents", label: "فتح منافذ التهوية" },
+  { id: "noElectricSwitch", label: "لا تستخدم مفتاح كهرباء (فتح/غلق) وأطفئ مصادر اللهب" },
+];
+function emptyOpsCard() {
+  return {
+    workOrderNo: "", receivedBy: "", alertRecipient: "",
+    actions: {}, arrivalTime: "", endTime: "",
+    workDetails: "", performedBy: "",
+    review: { actionsMatch: "", priorityMatch: "", arrivalStandard: "", resolutionStandard: "", followUp: "" },
+    shiftLeader: "", supervisor: "", engineer: "",
+  };
+}
+
 function genCode(len = 6) {
   const chars = "0123456789";
   let s = "";
@@ -42,6 +74,9 @@ function genCode(len = 6) {
 }
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function fmtTime(ts) {
   try {
@@ -133,6 +168,14 @@ function mapsLinkForCoords(lat, lng) {
 }
 function mapsLinkForQuery(q) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+// روابط خريطة مُضمَّنة (iframe) داخل البرنامج نفسه بدل الاكتفاء برابط خارجي —
+// بهذا يشوف فريق الاستجابة موقع الحالة على الخريطة مباشرة من داخل تفاصيل البلاغ
+function mapsEmbedForCoords(lat, lng) {
+  return `https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
+}
+function mapsEmbedForQuery(q) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
 }
 // يطلب من المتصفح تحديد الموقع الحالي (GPS)، ويُرجع الإحداثيات إن وافق المستخدم
 function captureLocation() {
@@ -323,11 +366,7 @@ function SetupScreen({ onDone }) {
       <GlobalStyle />
       <div className="mg-card" style={{ maxWidth: 420, width: "100%" }}>
         <div style={{ textAlign: "center", marginBottom: 18 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 14, background: "linear-gradient(135deg,#D93025,#B0271B)",
-            display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800,
-            fontSize: 18, margin: "0 auto 10px",
-          }}>MG</div>
+          <img src="/logo.png" alt="MODERNGAS" style={{ height: 52, margin: "0 auto 10px", display: "block" }} />
           <h2 style={{ margin: "4px 0 2px" }}>الشركة الحديثة للغاز الطبيعي</h2>
           <div style={{ color: "#8A6C68", fontSize: 13.5 }}>إعداد أول تشغيل — إنشاء حساب السوبر أدمن</div>
         </div>
@@ -376,11 +415,7 @@ function LoginScreen({ onLogin }) {
     <div className="mg-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <GlobalStyle />
       <div className="mg-card" style={{ maxWidth: 380, width: "100%", textAlign: "center" }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: 16, background: "linear-gradient(135deg,#D93025,#B0271B)",
-          display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800,
-          fontSize: 20, margin: "0 auto 12px",
-        }}>MG</div>
+        <img src="/logo.png" alt="MODERNGAS" style={{ height: 60, margin: "0 auto 12px", display: "block" }} />
         <h2 style={{ margin: "2px 0" }}>نظام طوارئ الغاز</h2>
         <div style={{ color: "#8A6C68", fontSize: 13.5, marginBottom: 4 }}>الشركة الحديثة للغاز الطبيعي</div>
         <div style={{ color: "#B79A96", fontSize: 12, marginBottom: 20 }}>إدارة الطوارئ والعمليات</div>
@@ -408,7 +443,7 @@ function LoginScreen({ onLogin }) {
 function IncidentForm({ currentUser, regions, onSubmitted }) {
   const empty = {
     reporterName: "", phone: "", subscriberNumber: "", incidentType: "",
-    severity: "2", details: "", region: regions[0]?.id || "",
+    severity: "", details: "", region: regions[0]?.id || "",
     address: "", location: null,
   };
   const [form, setForm] = useState(empty);
@@ -420,6 +455,8 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
   const [lastCrn, setLastCrn] = useState("");
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+  // اختيار نوع الحادثة يحدد درجة الخطورة تلقائياً — لا تدخل يدوي من المُبلِّغ
+  function setIncidentType(t) { setForm((f) => ({ ...f, incidentType: t, severity: autoSeverity(t) })); }
 
   async function attachLocation() {
     setLocStatus("loading"); setLocErr("");
@@ -446,7 +483,7 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
     const report = {
       id: uid(), crn, ...form, status: "new", assignee: "", comments: "",
       createdBy: currentUser.name, createdAt: Date.now(),
-      startedAt: null, completedAt: null,
+      startedAt: null, completedAt: null, opsCard: emptyOpsCard(),
     };
     const next = [report, ...reports];
     await saveJSON("gas_reports", next);
@@ -502,27 +539,19 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
       </select>
 
       <label className="mg-label">نوع الحادثة *</label>
-      <select className="mg-select" style={{ marginBottom: 12 }} value={form.incidentType} onChange={(e) => set("incidentType", e.target.value)}>
+      <select className="mg-select" style={{ marginBottom: 12 }} value={form.incidentType} onChange={(e) => setIncidentType(e.target.value)}>
         <option value="">— اختر —</option>
         {INCIDENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
 
-      <label className="mg-label">درجة الخطورة *</label>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {SEVERITIES.map((s) => (
-          <button
-            key={s.id} type="button"
-            onClick={() => set("severity", s.id)}
-            className="mg-btn mg-btn-sm"
-            style={{
-              flex: 1, justifyContent: "center",
-              background: form.severity === s.id ? s.color : s.bg,
-              color: form.severity === s.id ? "#fff" : s.color,
-              border: `1.5px solid ${s.color}`,
-            }}
-          >{s.emoji} {s.label}</button>
-        ))}
-      </div>
+      {form.incidentType && (
+        <div style={{ marginBottom: 12 }}>
+          <label className="mg-label">درجة الخطورة (تُحدَّد تلقائياً حسب نوع الحادثة)</label>
+          <span className="mg-badge" style={{ background: sevMeta(form.severity).bg, color: sevMeta(form.severity).color, fontSize: 14, padding: "8px 14px" }}>
+            {sevMeta(form.severity).emoji} {sevMeta(form.severity).label}
+          </span>
+        </div>
+      )}
 
       <label className="mg-label">تفاصيل</label>
       <textarea className="mg-textarea" style={{ marginBottom: 14, minHeight: 80 }} value={form.details} onChange={(e) => set("details", e.target.value)} />
@@ -550,6 +579,18 @@ function reportMapLink(r, regions) {
   }
   if (region && region.lat != null && region.lng != null) return mapsLinkForCoords(region.lat, region.lng);
   if (region) return mapsLinkForQuery(region.name);
+  return null;
+}
+// نفس منطق reportMapLink لكن يُرجع رابط خريطة "مُضمَّنة" (embed) لعرضها كإطار داخل التطبيق
+function reportMapEmbedUrl(r, regions) {
+  if (r.location) return mapsEmbedForCoords(r.location.lat, r.location.lng);
+  const region = regions.find((rg) => rg.id === r.region);
+  if (r.address && r.address.trim()) {
+    const q = region ? `${r.address} ${region.name}` : r.address;
+    return mapsEmbedForQuery(q);
+  }
+  if (region && region.lat != null && region.lng != null) return mapsEmbedForCoords(region.lat, region.lng);
+  if (region) return mapsEmbedForQuery(region.name);
   return null;
 }
 
@@ -645,12 +686,12 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div style={{ fontWeight: 700 }}>
-                  {urgent && <span style={{ marginLeft: 4 }}>🚨</span>}
-                  {r.reporterName}
+                <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  {urgent && <span>🚨</span>}
+                  <span>{r.reporterName}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{r.crn}</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: "#B79A96", fontFamily: "monospace" }}>{r.crn}</div>
-                <div style={{ fontSize: 12.5, color: "#8A6C68" }}>{r.incidentType} · {r.phone}</div>
+                <div style={{ fontSize: 12.5, color: "#8A6C68", marginTop: 2 }}>{r.incidentType} · {r.phone}</div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
                 <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {sv.label}</span>
@@ -750,6 +791,10 @@ function ExportExcelModal({ reports, regions, onClose }) {
       "رابط الموقع": reportMapLink(r, regions) || "",
       "التفاصيل": r.details || "",
       "التعليقات/التقرير النهائي": r.comments || "",
+      "رقم أمر شغل الطوارئ": r.opsCard?.workOrderNo || "",
+      "متلقي البلاغ": r.opsCard?.receivedBy || "",
+      "القائم بالعمل": r.opsCard?.performedBy || "",
+      "وصف الأعمال (بطاقة العمليات)": r.opsCard?.workDetails || "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -817,13 +862,19 @@ function CompleteReportForm({ report, onCancel, onConfirm }) {
 }
 
 function ReportDetailModal({ report, regions, canEdit, onClose, onSave }) {
-  const [form, setForm] = useState({ ...report });
+  const [form, setForm] = useState({ ...report, opsCard: report.opsCard || emptyOpsCard() });
+  const [opsOpen, setOpsOpen] = useState(false);
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+  // اختيار نوع الحادثة يحدد درجة الخطورة تلقائياً من البرنامج نفسه — بدون تدخل يدوي
+  function setIncidentType(t) { setForm((f) => ({ ...f, incidentType: t, severity: autoSeverity(t) })); }
   return (
     <Modal title={`✏️ تفاصيل البلاغ — ${report.crn || ""}`} onClose={onClose}>
       <div className="mg-grid2" style={{ marginBottom: 10 }}>
         <div>
-          <label className="mg-label">اسم المُبلِّغ</label>
+          <label className="mg-label">
+            اسم المُبلِّغ{" "}
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{form.crn}</span>
+          </label>
           <input className="mg-input" disabled={!canEdit} value={form.reporterName} onChange={(e) => set("reporterName", e.target.value)} />
         </div>
         <div>
@@ -835,16 +886,18 @@ function ReportDetailModal({ report, regions, canEdit, onClose, onSave }) {
       <input className="mg-input" style={{ marginBottom: 10 }} disabled={!canEdit} value={form.subscriberNumber} onChange={(e) => set("subscriberNumber", e.target.value)} />
 
       <label className="mg-label">نوع الحادثة</label>
-      <select className="mg-select" style={{ marginBottom: 10 }} disabled={!canEdit} value={form.incidentType} onChange={(e) => set("incidentType", e.target.value)}>
+      <select className="mg-select" style={{ marginBottom: 10 }} disabled={!canEdit} value={form.incidentType} onChange={(e) => setIncidentType(e.target.value)}>
         {INCIDENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
 
       <div className="mg-grid2" style={{ marginBottom: 10 }}>
         <div>
-          <label className="mg-label">الخطورة</label>
-          <select className="mg-select" disabled={!canEdit} value={form.severity} onChange={(e) => set("severity", e.target.value)}>
-            {SEVERITIES.map((s) => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
-          </select>
+          <label className="mg-label">درجة الأولوية (تلقائي)</label>
+          <div>
+            <span className="mg-badge" style={{ background: sevMeta(form.severity).bg, color: sevMeta(form.severity).color, fontSize: 13.5, padding: "7px 12px" }}>
+              {sevMeta(form.severity).emoji} {sevMeta(form.severity).label}
+            </span>
+          </div>
         </div>
         <div>
           <label className="mg-label">الحالة</label>
@@ -862,10 +915,18 @@ function ReportDetailModal({ report, regions, canEdit, onClose, onSave }) {
 
       <label className="mg-label">العنوان البريدي</label>
       <input className="mg-input" style={{ marginBottom: 8 }} disabled={!canEdit} value={form.address || ""} onChange={(e) => set("address", e.target.value)} />
+      {reportMapEmbedUrl(form, regions) && (
+        <div style={{ marginBottom: 6, borderRadius: 12, overflow: "hidden", border: "1px solid #F3E9E8" }}>
+          <iframe
+            title="موقع الحالة" width="100%" height="170" style={{ border: 0, display: "block" }}
+            loading="lazy" src={reportMapEmbedUrl(form, regions)}
+          />
+        </div>
+      )}
       {reportMapLink(form, regions) && (
         <div style={{ marginBottom: 10 }}>
           <a href={reportMapLink(form, regions)} target="_blank" rel="noreferrer" style={{ color: "#1A73E8", fontSize: 13 }}>
-            🗺️ {form.location ? "فتح الموقع الجغرافي على الخريطة" : "فتح العنوان/المنطقة على الخريطة"}
+            🗺️ فتح الموقع في تطبيق خرائط جوجل
           </a>
           {form.location && <span style={{ fontSize: 11.5, color: "#8A6C68" }}> (بدقة ~{Math.round(form.location.accuracy || 0)} متر)</span>}
         </div>
@@ -884,12 +945,213 @@ function ReportDetailModal({ report, regions, canEdit, onClose, onSave }) {
         {form.completedAt && <><br />✅ وقت الإنجاز: {fmtDuration(form.completedAt - form.startedAt)}</>}
       </div>
 
+      <button
+        type="button" className="mg-btn mg-btn-ghost mg-btn-sm"
+        style={{ width: "100%", justifyContent: "space-between", marginTop: 4, marginBottom: opsOpen ? 8 : 14 }}
+        onClick={() => setOpsOpen((o) => !o)}
+      >
+        <span>🗂️ بطاقة غرفة عمليات (نموذج FP-36-01)</span><span>{opsOpen ? "▲" : "▼"}</span>
+      </button>
+      {opsOpen && (
+        <div style={{ marginBottom: 14, paddingTop: 4, borderTop: "1px dashed #EBD9D6" }}>
+          <button
+            type="button" className="mg-btn mg-btn-outline mg-btn-sm"
+            style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}
+            onClick={() => printOpsCard(form, form.opsCard, regions)}
+          >🖨️ طباعة البطاقة</button>
+          <OpsCardFields card={form.opsCard} canEdit={canEdit} onChange={(c) => set("opsCard", c)} />
+        </div>
+      )}
+
       {canEdit ? (
-        <button className="mg-btn mg-btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => onSave(form)}>💾 حفظ التعديلات</button>
+        <button className="mg-btn mg-btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => onSave(form)}>💾 حفظ التعديلات (والبطاقة)</button>
       ) : (
         <div style={{ fontSize: 12.5, color: "#8A6C68", textAlign: "center" }}>عرض فقط — ليست لديك صلاحية التعديل</div>
       )}
     </Modal>
+  );
+}
+
+/* ============================== بطاقة غرفة عمليات (FP-36-01) ============================== */
+
+/* ============================== طباعة بطاقة غرفة العمليات ============================== */
+
+// يبني صفحة HTML مستقلة بتنسيق قريب من نموذج FP-36-01 الورقي الأصلي، ويفتحها
+// في نافذة جديدة ثم يستدعي أمر الطباعة مباشرة — لا حاجة لأي مكتبة خارجية.
+function printOpsCard(report, card, regions) {
+  const region = regions.find((r) => r.id === report.region);
+  const sv = sevMeta(report.severity);
+  const yn = (v) => (v ? escapeHtml(v) : "—");
+  const actionsHtml = OPS_ACTIONS.map(
+    (a) => `<div class="chk">${card.actions[a.id] ? "☑" : "☐"} ${escapeHtml(a.label)}</div>`
+  ).join("");
+
+  const html = `<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8" />
+<title>بطاقة غرفة عمليات — ${escapeHtml(report.crn || "")}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 26px; color: #222; direction: rtl; }
+  .top { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #D93025; padding-bottom: 10px; margin-bottom: 14px; }
+  .top img { height: 44px; }
+  h1 { font-size: 17px; margin: 0; text-align: center; }
+  h2 { font-size: 12.5px; margin: 2px 0 0; text-align: center; color: #666; font-weight: normal; }
+  .formid { font-size: 11px; color: #888; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  td, th { border: 1px solid #999; padding: 6px 9px; font-size: 12.5px; text-align: right; vertical-align: top; }
+  th { background: #FBF0EF; width: 18%; white-space: nowrap; }
+  .section-title { background: #D93025; color: #fff; font-weight: bold; padding: 6px 10px; margin: 16px 0 6px; border-radius: 4px; font-size: 13px; }
+  .chk { font-size: 12.5px; padding: 3px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; margin-bottom: 10px; }
+  .sig { display: flex; justify-content: space-between; margin-top: 26px; }
+  .sig div { text-align: center; font-size: 12px; width: 30%; }
+  .sig .line { border-top: 1px solid #333; margin-top: 34px; padding-top: 4px; }
+  .no-print { text-align: center; margin-bottom: 16px; }
+  .no-print button { padding: 10px 22px; font-size: 14px; background: #D93025; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+  @media print { .no-print { display: none; } body { padding: 10px; } }
+</style>
+</head>
+<body>
+  <div class="no-print"><button onclick="window.print()">🖨️ طباعة</button></div>
+  <div class="top">
+    <img src="/logo.png" alt="MODERNGAS" />
+    <div>
+      <h1>الشركة الحديثة للغاز الطبيعي — الإدارة العامة للعمليات والطوارئ</h1>
+      <h2>بطاقة غرفة عمليات · منطقة عمليات: ${escapeHtml(region?.name || "—")}</h2>
+    </div>
+    <div class="formid">FP-36-01</div>
+  </div>
+
+  <table>
+    <tr><th>اسم المُبلِّغ</th><td>${escapeHtml(report.reporterName)}</td><th>رقم البلاغ</th><td>${escapeHtml(report.crn || "")}</td></tr>
+    <tr><th>العنوان</th><td>${escapeHtml(report.address || "")}</td><th>تليفون</th><td>${escapeHtml(report.phone)}</td></tr>
+    <tr><th>اسم العميل / الرقم الكودي</th><td>${escapeHtml(report.subscriberNumber)}</td><th>درجة الأولوية</th><td>${sv.emoji} ${sv.label}</td></tr>
+    <tr><th>موضوع البلاغ</th><td colspan="3">${escapeHtml(report.incidentType)}${report.details ? " — " + escapeHtml(report.details) : ""}</td></tr>
+    <tr><th>وقت استلام البلاغ</th><td>${escapeHtml(fmtTime(report.createdAt))}</td><th>رقم أمر شغل الطوارئ</th><td>${yn(card.workOrderNo)}</td></tr>
+    <tr><th>متلقي البلاغ</th><td>${yn(card.receivedBy)}</td><th>مستلم الإخطار</th><td>${yn(card.alertRecipient)}</td></tr>
+  </table>
+
+  <div class="section-title">الإجراءات المتخذة</div>
+  <div class="grid2">${actionsHtml}</div>
+
+  <div class="section-title">تقرير الأعمال</div>
+  <table>
+    <tr><th>وقت الوصول</th><td>${yn(card.arrivalTime)}</td><th>وقت انتهاء الحالة</th><td>${yn(card.endTime)}</td></tr>
+    <tr><th>وصف الأعمال</th><td colspan="3">${escapeHtml(card.workDetails || "").replace(/\n/g, "<br/>") || "—"}</td></tr>
+    <tr><th>القائم بالعمل / رقم الأداء</th><td colspan="3">${yn(card.performedBy)}</td></tr>
+  </table>
+
+  <div class="section-title">مراجعة الأعمال</div>
+  <table>
+    <tr><th>الإجراءات المتخذة مطابقة</th><td>${yn(card.review.actionsMatch)}</td><th>درجة الأولوية مطابقة</th><td>${yn(card.review.priorityMatch)}</td></tr>
+    <tr><th>وقت الوصول قياسي</th><td>${yn(card.review.arrivalStandard)}</td><th>وقت العلاج قياسي</th><td>${yn(card.review.resolutionStandard)}</td></tr>
+    <tr><th>تعقيب</th><td colspan="3">${escapeHtml(card.review.followUp || "") || "—"}</td></tr>
+  </table>
+
+  <div class="sig">
+    <div>الاسم: ${yn(card.shiftLeader)}<div class="line">رئيس الوردية</div></div>
+    <div>الاسم: ${yn(card.supervisor)}<div class="line">مشرف الطوارئ</div></div>
+    <div>الاسم: ${yn(card.engineer)}<div class="line">مهندس الطوارئ</div></div>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=850,height=950");
+  if (!win) return alert("المتصفح منع فتح نافذة الطباعة — فعّل النوافذ المنبثقة لهذا الموقع وحاول مرة أخرى");
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { try { win.print(); } catch (e) {} }, 400);
+}
+
+function OpsCardFields({ card, canEdit, onChange }) {
+  function setField(k, v) { onChange({ ...card, [k]: v }); }
+  function toggleAction(id) { onChange({ ...card, actions: { ...card.actions, [id]: !card.actions[id] } }); }
+  function setReview(k, v) { onChange({ ...card, review: { ...card.review, [k]: v } }); }
+
+  return (
+    <div>
+      <div className="mg-grid2" style={{ marginBottom: 10 }}>
+        <div>
+          <label className="mg-label">رقم أمر شغل الطوارئ</label>
+          <input className="mg-input" disabled={!canEdit} value={card.workOrderNo} onChange={(e) => setField("workOrderNo", e.target.value)} />
+        </div>
+        <div>
+          <label className="mg-label">متلقي البلاغ</label>
+          <input className="mg-input" disabled={!canEdit} value={card.receivedBy} onChange={(e) => setField("receivedBy", e.target.value)} />
+        </div>
+      </div>
+
+      <label className="mg-label">مستلم الإخطار</label>
+      <input className="mg-input" style={{ marginBottom: 12 }} disabled={!canEdit} value={card.alertRecipient} onChange={(e) => setField("alertRecipient", e.target.value)} />
+
+      <label className="mg-label" style={{ marginBottom: 8 }}>الإجراءات المتخذة قبل/عند الوصول</label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 14 }}>
+        {OPS_ACTIONS.map((a) => (
+          <label key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12, color: "#6B4B47" }}>
+            <input type="checkbox" style={{ marginTop: 2 }} disabled={!canEdit} checked={!!card.actions[a.id]} onChange={() => toggleAction(a.id)} />
+            <span>{a.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>تقرير الأعمال</div>
+      <div className="mg-grid2" style={{ marginBottom: 10 }}>
+        <div>
+          <label className="mg-label">وقت الوصول</label>
+          <input type="datetime-local" className="mg-input" disabled={!canEdit} value={card.arrivalTime} onChange={(e) => setField("arrivalTime", e.target.value)} />
+        </div>
+        <div>
+          <label className="mg-label">وقت انتهاء الحالة</label>
+          <input type="datetime-local" className="mg-input" disabled={!canEdit} value={card.endTime} onChange={(e) => setField("endTime", e.target.value)} />
+        </div>
+      </div>
+
+      <label className="mg-label">وصف الأعمال المنفذة</label>
+      <textarea className="mg-textarea" style={{ marginBottom: 10, minHeight: 70 }} disabled={!canEdit} value={card.workDetails} onChange={(e) => setField("workDetails", e.target.value)} />
+
+      <label className="mg-label">القائم بالعمل / رقم الأداء</label>
+      <input className="mg-input" style={{ marginBottom: 16 }} disabled={!canEdit} value={card.performedBy} onChange={(e) => setField("performedBy", e.target.value)} />
+
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>مراجعة الأعمال</div>
+      {[
+        { k: "actionsMatch", label: "الإجراءات المتخذة مطابقة للحالة" },
+        { k: "priorityMatch", label: "درجة أولوية الحالة مطابقة" },
+        { k: "arrivalStandard", label: "الوقت المستغرق للوصول قياسي" },
+        { k: "resolutionStandard", label: "الوقت المستغرق لعلاج الحالة قياسي" },
+      ].map((q) => (
+        <div key={q.k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+          <span style={{ fontSize: 12.5, color: "#6B4B47" }}>{q.label}</span>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            {["نعم", "لا"].map((v) => (
+              <button
+                key={v} type="button" disabled={!canEdit} className="mg-btn mg-btn-sm"
+                style={{ background: card.review[q.k] === v ? "#D93025" : "#F3E9E8", color: card.review[q.k] === v ? "#fff" : "#6B4B47" }}
+                onClick={() => setReview(q.k, v)}
+              >{v}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <label className="mg-label">تعقيب</label>
+      <textarea className="mg-textarea" style={{ marginBottom: 14, minHeight: 50 }} disabled={!canEdit} value={card.review.followUp} onChange={(e) => setReview("followUp", e.target.value)} />
+
+      <div className="mg-grid2" style={{ marginBottom: 10 }}>
+        <div>
+          <label className="mg-label">رئيس الوردية</label>
+          <input className="mg-input" disabled={!canEdit} value={card.shiftLeader} onChange={(e) => setField("shiftLeader", e.target.value)} />
+        </div>
+        <div>
+          <label className="mg-label">مشرف الطوارئ</label>
+          <input className="mg-input" disabled={!canEdit} value={card.supervisor} onChange={(e) => setField("supervisor", e.target.value)} />
+        </div>
+      </div>
+      <label className="mg-label">مهندس الطوارئ</label>
+      <input className="mg-input" disabled={!canEdit} value={card.engineer} onChange={(e) => setField("engineer", e.target.value)} />
+    </div>
   );
 }
 
@@ -1217,7 +1479,7 @@ function Header({ currentUser, onLogout, onChangeCode, onRefresh, tab, setTab })
   const tabsByRole = {
     super_admin: ["report", "list", "stats", "regions", "users", "alerts"],
     manager: ["report", "list", "stats", "regions", "alerts"],
-    response: ["report", "list", "stats", "alerts"],
+    response: ["report", "list"],
     observer: ["list", "stats", "alerts"],
     reporter: ["report", "list", "alerts"],
   };
@@ -1231,9 +1493,12 @@ function Header({ currentUser, onLogout, onChangeCode, onRefresh, tab, setTab })
     <>
       <div className="mg-header">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>MG · نظام طوارئ الغاز</div>
-            <div style={{ fontSize: 12, opacity: 0.9 }}>{ROLES[currentUser.role]?.icon} {currentUser.name} · {ROLES[currentUser.role]?.label}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <img src="/logo.png" alt="MODERNGAS" style={{ height: 32, background: "#fff", borderRadius: 6, padding: "2px 6px" }} />
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>نظام طوارئ الغاز</div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>{ROLES[currentUser.role]?.icon} {currentUser.name} · {ROLES[currentUser.role]?.label}</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button className="mg-btn mg-btn-sm" style={{ background: "rgba(255,255,255,.2)", color: "#fff" }} onClick={onRefresh}>🔄</button>
