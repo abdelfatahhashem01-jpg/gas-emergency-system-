@@ -1,0 +1,17 @@
+{
+  "name": "نظام طوارئ الغاز — الشركة الحديثة للغاز الطبيعي",
+  "short_name": "طوارئ الغاز",
+  "description": "نظام إدارة بلاغات وطوارئ الغاز - MODERNGAS",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F6",
+  "theme_color": "#D93025",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
