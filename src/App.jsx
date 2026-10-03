@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -271,7 +270,7 @@ const OPS_ACTIONS = [
 ];
 function emptyOpsCard() {
   return {
-    workOrderNo: "", receivedBy: "", alertRecipient: "",
+    workOrderNo: "", receivedBy: "", alertRecipient: "", reporterName: "",
     actions: {}, arrivalTime: "", endTime: "",
     workDetails: "", performedBy: "",
     review: { actionsMatch: "", priorityMatch: "", arrivalStandard: "", resolutionStandard: "", followUp: "" },
@@ -548,8 +547,26 @@ function GlobalStyle() {
       .mg-dashboard-grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(320px,.95fr); gap:14px; align-items:start; }
       .mg-two-col { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
       .mg-three-col { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-      .mg-report-row { background:#fff; border-radius:15px; padding:15px; border:1px solid #e2e8f0; margin-bottom:9px; cursor:pointer; transition:transform .12s, box-shadow .15s, border-color .15s; box-shadow:0 2px 8px rgba(15,23,42,.03); }
+      .mg-report-row { background:#fff; border-radius:15px 15px 0 0; padding:15px; border:1px solid #e2e8f0; margin-bottom:0; cursor:pointer; transition:transform .12s, box-shadow .15s, border-color .15s; box-shadow:0 2px 8px rgba(15,23,42,.03); }
       .mg-report-row:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(15,23,42,.07); border-color:#cbd5e1; }
+      .mg-report-statusline { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+      .mg-sender-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background:#f8fafc; border:1px solid #e2e8f0; color:#334155; font-size:12px; font-weight:700; }
+      .mg-room-card { margin:0 0 12px; padding:13px; border:1px solid #dbe4ee; border-top:0; border-radius:0 0 15px 15px; background:linear-gradient(180deg,#f8fbff,#fff); box-shadow:0 5px 14px rgba(15,23,42,.035); }
+      .mg-room-head { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+      .mg-room-title { display:flex; align-items:center; gap:8px; font-weight:800; color:#0f172a; }
+      .mg-room-icon { width:32px; height:32px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; background:#e8f0fe; border:1px solid #c7d7f8; }
+      .mg-room-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+      .mg-room-field { background:#fff; border:1px solid #e7edf4; border-radius:10px; padding:8px 10px; min-width:0; }
+      .mg-room-field-label { display:block; font-size:10.5px; color:#94a3b8; margin-bottom:3px; }
+      .mg-room-field-value { display:block; font-size:12.5px; color:#334155; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .mg-action-bar { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+      .mg-action-pill { border:1px solid #dbe4ee; background:#fff; color:#334155; border-radius:10px; padding:7px 10px; display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; cursor:pointer; transition:.15s; }
+      .mg-action-pill:hover { transform:translateY(-1px); box-shadow:0 4px 10px rgba(15,23,42,.08); }
+      .mg-action-pill.primary { background:#e8f0fe; border-color:#bfd2f7; color:#1a56db; }
+      .mg-action-pill.success { background:#e6f4ea; border-color:#b8dfc2; color:#188038; }
+      .mg-action-pill.danger { background:#fdecea; border-color:#f5b9b3; color:#b3261e; }
+      @media(max-width:900px){ .mg-room-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+      @media(max-width:520px){ .mg-room-grid{grid-template-columns:1fr;} }
       .mg-report-meta { color:#64748b; font-size:12px; display:flex; flex-wrap:wrap; gap:10px; }
       .mg-badge { display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:999px; font-size:11.5px; font-weight:800; }
       .mg-progress { height:8px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
@@ -832,7 +849,7 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
     const report = {
       id: uid(), crn, ...form, status: "new", assignee: "", comments: "",
       createdBy: currentUser.name, createdAt: Date.now(),
-      startedAt: null, completedAt: null, opsCard: emptyOpsCard(),
+      startedAt: null, completedAt: null, opsCard: { ...emptyOpsCard(), reporterName: form.reporterName.trim() },
       timeline: [{ ts: Date.now(), event: "تسجيل البلاغ", by: currentUser.name, note: "" }],
     };
     const next = [report, ...reports];
@@ -1245,53 +1262,67 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
         const sv = sevMeta(r.severity), st = statusMeta(r.status);
         const urgent = r.severity === "1" && r.status !== "done";
         return (
-          <div
-            key={r.id} className="mg-report-row" onClick={() => setSelected(r)}
-            style={urgent ? { borderRight: "4px solid #D93025", background: "#FFFBFA" } : undefined}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  {urgent && <span>🚨</span>}
-                  <span>{r.reporterName}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{r.crn}</span>
+          <React.Fragment key={r.id}>
+            <div
+              className="mg-report-row" onClick={() => setSelected(r)}
+              style={urgent ? { borderRight: "4px solid #D93025", background: "#FFFBFA" } : undefined}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    {urgent && <span>🚨</span>}
+                    <span>{r.reporterName}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{r.crn}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#8A6C68", marginTop: 2 }}>{r.incidentType} · {r.phone}</div>
                 </div>
-                <div style={{ fontSize: 12.5, color: "#8A6C68", marginTop: 2 }}>{r.incidentType} · {r.phone}</div>
+                <div className="mg-report-statusline">
+                  <span className="mg-sender-chip">👤 مُرسل البلاغ: {r.reporterName || "غير مسجل"}</span>
+                  <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {sv.label}</span>
+                  <span className="mg-badge" style={{ background: st.bg, color: st.color }}>● {st.label}</span>
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {sv.label}</span>
-                <span className="mg-badge" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 9, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 11.5, color: "#B79A96" }}>
+                  {fmtTime(r.createdAt)}
+                  {r.assignee && <span> · 👤 {r.assignee}</span>}
+                  {r.startedAt && <span> · ⏱️ استجابة: {fmtDuration(r.startedAt - r.createdAt)}</span>}
+                  {r.completedAt && <span> · إنجاز: {fmtDuration(r.completedAt - r.startedAt)}</span>}
+                  {reportMapLink(r, regions) && (
+                    <>
+                      {" · "}
+                      <a href={reportMapLink(r, regions)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#1A73E8" }}>
+                        📍 الموقع
+                      </a>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-              <div style={{ fontSize: 11.5, color: "#B79A96" }}>
-                {fmtTime(r.createdAt)}
-                {r.assignee && <span> · 👤 {r.assignee}</span>}
-                {r.startedAt && <span> · ⏱️ استجابة: {fmtDuration(r.startedAt - r.createdAt)}</span>}
-                {r.completedAt && <span> · إنجاز: {fmtDuration(r.completedAt - r.startedAt)}</span>}
-                {reportMapLink(r, regions) && (
-                  <>
-                    {" · "}
-                    <a href={reportMapLink(r, regions)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#1A73E8" }}>
-                      🗺️ الموقع
-                    </a>
-                  </>
-                )}
+
+            <div className="mg-room-card" onClick={(e) => e.stopPropagation()}>
+              <div className="mg-room-head">
+                <div className="mg-room-title"><span className="mg-room-icon">🗂️</span> بطاقة غرفة العمليات <span style={{ color: "#94a3b8", fontSize: 11 }}>FP-36-01</span></div>
+                <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {st.label}</span>
               </div>
-              {canEdit && r.status === "new" && (
-                <button
-                  className="mg-btn mg-btn-sm" style={{ background: "#1A73E8", color: "#fff" }}
-                  onClick={(e) => { e.stopPropagation(); startProcessing(r); }}
-                >🚀 بدء المعالجة</button>
-              )}
-              {canEdit && r.status === "processing" && (
-                <button
-                  className="mg-btn mg-btn-sm" style={{ background: "#188038", color: "#fff" }}
-                  onClick={(e) => { e.stopPropagation(); setCompleting(r); }}
-                >✅ مكتمل</button>
-              )}
+              <div className="mg-room-grid">
+                <div className="mg-room-field"><span className="mg-room-field-label">اسم مُرسل البلاغ</span><span className="mg-room-field-value">{r.opsCard?.reporterName || r.reporterName || "غير مسجل"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">متلقي البلاغ</span><span className="mg-room-field-value">{r.opsCard?.receivedBy || "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">مستلم الإخطار</span><span className="mg-room-field-value">{r.opsCard?.alertRecipient || "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">أمر شغل الطوارئ</span><span className="mg-room-field-value">{r.opsCard?.workOrderNo || "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">القائم بالعمل</span><span className="mg-room-field-value">{r.opsCard?.performedBy || r.assignee || "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">وقت الوصول</span><span className="mg-room-field-value">{r.opsCard?.arrivalTime ? fmtTime(new Date(r.opsCard.arrivalTime).getTime()) : "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">نهاية الحالة</span><span className="mg-room-field-value">{r.opsCard?.endTime ? fmtTime(new Date(r.opsCard.endTime).getTime()) : "—"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">الإجراءات المسجلة</span><span className="mg-room-field-value">{Object.values(r.opsCard?.actions || {}).filter(Boolean).length} إجراءات</span></div>
+              </div>
+              <div className="mg-action-bar">
+                <button type="button" className="mg-action-pill primary" onClick={() => setSelected(r)}>👁️ فتح البلاغ</button>
+                <button type="button" className="mg-action-pill" onClick={() => printOpsCard(r, r.opsCard || emptyOpsCard(), regions)}>🖨️ طباعة البطاقة</button>
+                {canEdit && r.status === "new" && <button type="button" className="mg-action-pill primary" onClick={() => startProcessing(r)}>🚀 بدء المعالجة</button>}
+                {canEdit && r.status === "processing" && <button type="button" className="mg-action-pill success" onClick={() => setCompleting(r)}>✅ إكمال الحالة</button>}
+              </div>
             </div>
-          </div>
+          </React.Fragment>
         );
       })}
 
@@ -1304,6 +1335,7 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
           onSave={async (updated) => {
             const withTimeline = {
               ...updated,
+              opsCard: { ...emptyOpsCard(), ...(updated.opsCard || {}), reporterName: updated.reporterName || updated.opsCard?.reporterName || "" },
               timeline: [...(updated.timeline || []), { ts: Date.now(), event: "تعديل بيانات البلاغ", by: currentUser.name, note: "" }],
             };
             const next = reports.map((r) => (r.id === updated.id ? withTimeline : r));
@@ -1509,7 +1541,10 @@ function CompleteReportForm({ report, onCancel, onConfirm }) {
 }
 
 function ReportDetailModal({ report, regions, canEdit, isSuperAdmin, onClose, onSave, onDelete }) {
-  const [form, setForm] = useState({ ...report, opsCard: report.opsCard || emptyOpsCard() });
+  const [form, setForm] = useState({
+    ...report,
+    opsCard: { ...emptyOpsCard(), ...(report.opsCard || {}), reporterName: report.opsCard?.reporterName || report.reporterName || "" },
+  });
   const [opsOpen, setOpsOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
@@ -1839,6 +1874,10 @@ function OpsCardFields({ card, canEdit, onChange }) {
 
   return (
     <div>
+      <div className="mg-room-field" style={{ marginBottom: 10, borderColor: "#bfd2f7", background: "#f8fbff" }}>
+        <label className="mg-label" style={{ marginBottom: 5 }}>اسم مُرسل البلاغ</label>
+        <input className="mg-input" disabled={!canEdit} value={card.reporterName || ""} onChange={(e) => setField("reporterName", e.target.value)} placeholder="اكتب اسم مُرسل البلاغ" />
+      </div>
       <div className="mg-grid2" style={{ marginBottom: 10 }}>
         <div>
           <label className="mg-label">رقم أمر شغل الطوارئ</label>
