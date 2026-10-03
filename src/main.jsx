@@ -1,5 +1,9 @@
-
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.jsx';
-createRoot(document.getElementById('root')).render(<App />);
+{
+  "name":"gas-emergency-system",
+  "private":true,
+  "version":"2.0.0",
+  "type":"module",
+  "scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},
+  "dependencies":{"react":"^18.3.1","react-dom":"^18.3.1","firebase":"^10.13.0","xlsx":"^0.18.5","recharts":"^2.13.3","leaflet":"^1.9.4"},
+  "devDependencies":{"@vitejs/plugin-react":"^4.3.4","vite":"^5.4.11"}
+}
