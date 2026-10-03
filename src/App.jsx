@@ -102,7 +102,7 @@ function defaultWhatsappNumbers() {
   return NOTIFY_ROLES.map((role) => ({ role, phone: "", description: "" }));
 }
 function defaultAppSettings() {
-  return { appName: "نظام طوارئ الغاز", roleIcons: {}, severityIcons: {}, whatsappNumbers: defaultWhatsappNumbers(), zoomLink: "" };
+  return { appName: "نظام طوارئ الغاز", roleIcons: {}, severityIcons: {}, whatsappNumbers: defaultWhatsappNumbers(), zoomLink: "", theme: { primary: "#a51d2d", primary2: "#741321", accent: "#c62828", bg: "#f6eeee", card: "#ffffff", shape: "rounded" } };
 }
 let dynamicSettings = defaultAppSettings();
 // يهاجر أي شكل قديم (بحقل "name" بدل "role"، أو بدون "description") للشكل
@@ -122,6 +122,7 @@ function applyAppSettings(s) {
     severityIcons: (s && s.severityIcons) || {},
     whatsappNumbers: migrateWhatsappNumbers(s && s.whatsappNumbers),
     zoomLink: (s && s.zoomLink) || "",
+    theme: { ...(defaultAppSettings().theme), ...((s && s.theme) || {}) },
   };
 }
 function roleIcon(role) { return dynamicSettings.roleIcons[role] || ROLES[role]?.icon || ""; }
@@ -140,7 +141,8 @@ function buildWhatsAppAlertMessage(report, regions) {
   let msg =
     `🚨 حالة طوارئ شديدة الخطورة\n` +
     `نوع الحادثة: ${report.incidentType}\n` +
-    `المُبلِّغ: ${report.reporterName} - ${report.phone}\n` +
+    `اسم العميل: ${report.reporterName} - ${report.phone}\n` +
+    `سجّل البلاغ: ${report.reportSenderName || report.createdBy || "—"}\n` +
     `العنوان: ${report.address || "—"}\n` +
     `رقم البلاغ: ${report.crn || "—"}\n`;
   if (mapLink) msg += `📍 موقع الحادثة: ${mapLink}\n`;
@@ -211,7 +213,7 @@ function parseVoiceReport(text) {
   const addrMatch = norm.match(/(?:العنوان|في شارع|في حي|في منطقة)\s*[:\-]?\s*(.+?)(?:$|،|\.|رقم|هاتف|اسم)/);
   if (addrMatch && addrMatch[1].trim()) result.address = addrMatch[1].trim();
 
-  const nameMatch = norm.match(/(?:اسمي|اسم المبلغ|اسم المُبلِّغ|الاسم)\s*[:\-]?\s*(.+?)(?:$|،|\.|رقم|هاتف|عنوان)/);
+  const nameMatch = norm.match(/(?:اسمي|اسم المبلغ|اسم العميل|الاسم)\s*[:\-]?\s*(.+?)(?:$|،|\.|رقم|هاتف|عنوان)/);
   if (nameMatch && nameMatch[1].trim()) result.reporterName = nameMatch[1].trim();
 
   return result;
@@ -503,29 +505,47 @@ function captureLocation() {
   });
 }
 
+function themeCss(theme) {
+  const t = { ...(defaultAppSettings().theme), ...(theme || {}) };
+  const shape = t.shape || "rounded";
+  const radii = {
+    square: ["2px", "2px", "4px"],
+    rounded: ["12px", "10px", "18px"],
+    pill: ["999px", "999px", "22px"],
+    hexagon: ["10px", "10px", "14px"],
+  }[shape] || ["12px", "10px", "18px"];
+  return {
+    "--mg-primary": t.primary, "--mg-primary-2": t.primary2, "--mg-accent": t.accent,
+    "--mg-bg": t.bg, "--mg-bg-soft": t.bg, "--mg-card": t.card,
+    "--mg-radius": radii[0], "--mg-radius-sm": radii[1], "--mg-radius-lg": radii[2],
+  };
+}
+
 function GlobalStyle() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-      :root { --mg-primary:#c62828; --mg-primary-2:#8e1b1b; --mg-bg:#f4f7fb; --mg-card:#fff; --mg-text:#172033; --mg-muted:#64748b; --mg-line:#e2e8f0; --mg-soft:#f8fafc; --mg-green:#0f9d58; --mg-amber:#d97706; --mg-blue:#2563eb; }
+      :root { --mg-primary:#a51d2d; --mg-primary-2:#741321; --mg-accent:#c62828; --mg-bg:#f8eeee; --mg-card:#fffdfd; --mg-text:#2b171a; --mg-muted:#725c60; --mg-line:#ead4d7; --mg-soft:#fff7f8; --mg-green:#0f9d58; --mg-amber:#d97706; --mg-blue:#2563eb; }
       @keyframes mgPulse { 0%,100% { box-shadow:0 0 0 0 rgba(198,40,40,.25) } 50% { box-shadow:0 0 0 8px rgba(198,40,40,0) } }
       @keyframes mgBannerFlash { 0%,100% { background:#b91c1c } 50% { background:#7f1d1d } }
       @keyframes mgShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-      .mg-root { direction:rtl; font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:linear-gradient(180deg,#eef3f8 0%,#f7f9fc 38%,#eef2f7 100%); color:var(--mg-text); min-height:100vh; }
+      .mg-root { direction:rtl; font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:linear-gradient(180deg,var(--mg-bg) 0%,var(--mg-bg-soft) 48%,var(--mg-bg) 100%); color:var(--mg-text); min-height:100vh; }
       .mg-shell { max-width:1440px; margin:0 auto; padding:18px; }
-      .mg-btn { border:0; border-radius:11px; padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; transition:transform .12s, box-shadow .18s, opacity .18s; }
+      .mg-btn { border:0; border-radius:var(--mg-radius); padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; transition:transform .12s, box-shadow .18s, opacity .18s; }
       .mg-btn:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(15,23,42,.10); }
       .mg-btn:active { transform:scale(.98); }
+      .mg-theme-hexagon .mg-btn, .mg-theme-hexagon .mg-tab { clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%); border-radius:0; }
+      .mg-theme-hexagon .mg-card, .mg-theme-hexagon .mg-stat { clip-path:polygon(3% 0,97% 0,100% 8%,100% 92%,97% 100%,3% 100%,0 92%,0 8%); border-radius:0; }
       .mg-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
       .mg-btn-primary { background:linear-gradient(135deg,var(--mg-primary),var(--mg-primary-2)); color:#fff; }
       .mg-btn-outline { background:#fff; color:var(--mg-primary); border:1px solid #fecaca; }
       .mg-btn-ghost { background:#f1f5f9; color:#334155; }
-      .mg-btn-sm { padding:7px 11px; font-size:12.5px; border-radius:9px; }
-      .mg-input,.mg-select,.mg-textarea { width:100%; border:1px solid #d7dee8; border-radius:11px; padding:11px 13px; font-size:14px; background:#fff; color:var(--mg-text); font-family:inherit; box-shadow:0 1px 2px rgba(15,23,42,.03); transition:border-color .15s, box-shadow .15s; }
+      .mg-btn-sm { padding:7px 11px; font-size:12.5px; border-radius:var(--mg-radius-sm); }
+      .mg-input,.mg-select,.mg-textarea { width:100%; border:1px solid #d7dee8; border-radius:var(--mg-radius); padding:11px 13px; font-size:14px; background:#fff; color:var(--mg-text); font-family:inherit; box-shadow:0 1px 2px rgba(15,23,42,.03); transition:border-color .15s, box-shadow .15s; }
       .mg-input:focus,.mg-select:focus,.mg-textarea:focus { outline:none; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.10); }
       .mg-label { font-size:12.5px; font-weight:800; color:#475569; margin-bottom:7px; display:block; }
-      .mg-card { background:rgba(255,255,255,.97); border-radius:18px; padding:18px; box-shadow:0 8px 30px rgba(15,23,42,.06); border:1px solid rgba(226,232,240,.95); }
-      .mg-header { background:linear-gradient(135deg,#991b1b 0%,#c62828 55%,#dc2626 100%); color:#fff; padding:12px 18px; position:sticky; top:0; z-index:40; box-shadow:0 5px 22px rgba(127,29,29,.25); }
+      .mg-card { background:rgba(255,255,255,.97); border-radius:var(--mg-radius-lg); padding:18px; box-shadow:0 8px 30px rgba(15,23,42,.06); border:1px solid rgba(226,232,240,.95); }
+      .mg-header { background:linear-gradient(135deg,#741321 0%,#a51d2d 52%,#c62828 100%); color:#fff; padding:12px 18px; position:sticky; top:0; z-index:40; box-shadow:0 5px 22px rgba(127,29,29,.25); }
       .mg-header-inner { max-width:1440px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; }
       .mg-brand { display:flex; align-items:center; gap:12px; min-width:0; }
       .mg-brand-logo { height:40px; min-width:68px; object-fit:contain; background:#fff; border-radius:10px; padding:4px 8px; }
@@ -823,7 +843,7 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
 
   async function submit() {
     setErr(""); setOk(false);
-    if (!form.reporterName.trim()) return setErr("اسم المُبلِّغ مطلوب");
+    if (!form.reporterName.trim()) return setErr("اسم العميل مطلوب");
     if (!/^\d{11}$/.test(form.phone.trim())) return setErr("رقم الهاتف يجب أن يكون 11 رقماً");
     if (!form.subscriberNumber.trim()) return setErr("رقم المشترك مطلوب");
     if (!form.incidentType) return setErr("اختر نوع الحادثة");
@@ -848,8 +868,8 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
     const crn = `MG-${new Date().getFullYear()}-${String(reports.length + 1).padStart(6, "0")}`;
     const report = {
       id: uid(), crn, ...form, status: "new", assignee: "", comments: "",
-      createdBy: currentUser.name, createdAt: Date.now(),
-      startedAt: null, completedAt: null, opsCard: { ...emptyOpsCard(), reporterName: form.reporterName.trim() },
+      createdBy: currentUser.name, reportSenderName: currentUser.name, createdAt: Date.now(),
+      startedAt: null, completedAt: null, opsCard: { ...emptyOpsCard(), reportSenderName: currentUser.name, reporterName: form.reporterName.trim() },
       timeline: [{ ts: Date.now(), event: "تسجيل البلاغ", by: currentUser.name, note: "" }],
     };
     const next = [report, ...reports];
@@ -857,7 +877,7 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
     const alerts = await loadJSON("gas_alerts", []);
     const locNote = form.location ? " 📍 مع الموقع الجغرافي" : "";
     const urgentPrefix = form.severity === "1" ? "🚨 عاجل — " : "";
-    await saveJSON("gas_alerts", [{ id: uid(), text: `${urgentPrefix}بلاغ جديد (${sevMeta(form.severity).label}) رقم ${crn} من ${form.reporterName}${locNote}`, ts: Date.now() }, ...alerts].slice(0, 100));
+    await saveJSON("gas_alerts", [{ id: uid(), text: `${urgentPrefix}بلاغ جديد (${sevMeta(form.severity).label}) رقم ${crn} من العميل ${form.reporterName} — سجله ${currentUser.name}${locNote}`, ts: Date.now() }, ...alerts].slice(0, 100));
     // حوادث شديدة الخطورة (انفجار/كسر خط غاز/حريق/محطة غاز) تستوجب تنبيه فوري
     // عبر واتساب للسوبر أدمن ومجموعة المهندسين، بجانب التنبيه الداخلي بالأعلى.
     // نحاول أولاً الإرسال التلقائي الكامل عبر سيرفر الشركة (لو متاح)، وإلا
@@ -913,7 +933,7 @@ function IncidentForm({ currentUser, regions, onSubmitted }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <label className="mg-label" style={{ margin: 0 }}>اسم المُبلِّغ *</label>
+        <label className="mg-label" style={{ margin: 0 }}>اسم العميل *</label>
         <VoiceInputButton onResult={(text) => set("reporterName", text)} />
       </div>
       <input className="mg-input" style={{ marginBottom: 12 }} value={form.reporterName} onChange={(e) => set("reporterName", e.target.value)} />
@@ -1149,7 +1169,7 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
       if (q.trim()) {
         const s = q.trim().toLowerCase();
         const haystack = [
-          r.crn, r.reporterName, r.phone, r.subscriberNumber, r.address,
+          r.crn, r.reporterName, r.reportSenderName, r.createdBy, r.phone, r.subscriberNumber, r.address,
           r.incidentType, r.assignee, r.comments, r.details,
         ].filter(Boolean).join(" ").toLowerCase();
         if (!haystack.includes(s)) return false;
@@ -1271,13 +1291,13 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
                 <div>
                   <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     {urgent && <span>🚨</span>}
-                    <span>{r.reporterName}</span>
+                    <span>{r.reporterName || "عميل غير مسجل"}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{r.crn}</span>
                   </div>
                   <div style={{ fontSize: 12.5, color: "#8A6C68", marginTop: 2 }}>{r.incidentType} · {r.phone}</div>
                 </div>
                 <div className="mg-report-statusline">
-                  <span className="mg-sender-chip">👤 مُرسل البلاغ: {r.reporterName || "غير مسجل"}</span>
+                  <span className="mg-sender-chip">👤 مُرسل البلاغ: {r.reportSenderName || r.createdBy || "غير مسجل"}</span>
                   <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {sv.label}</span>
                   <span className="mg-badge" style={{ background: st.bg, color: st.color }}>● {st.label}</span>
                 </div>
@@ -1306,7 +1326,8 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
                 <span className="mg-badge" style={{ background: sv.bg, color: sv.color }}>{sv.emoji} {st.label}</span>
               </div>
               <div className="mg-room-grid">
-                <div className="mg-room-field"><span className="mg-room-field-label">اسم مُرسل البلاغ</span><span className="mg-room-field-value">{r.opsCard?.reporterName || r.reporterName || "غير مسجل"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">اسم مُرسل البلاغ</span><span className="mg-room-field-value">{r.reportSenderName || r.createdBy || r.opsCard?.reportSenderName || "غير مسجل"}</span></div>
+                <div className="mg-room-field"><span className="mg-room-field-label">اسم العميل</span><span className="mg-room-field-value">{r.reporterName || "غير مسجل"}</span></div>
                 <div className="mg-room-field"><span className="mg-room-field-label">متلقي البلاغ</span><span className="mg-room-field-value">{r.opsCard?.receivedBy || "—"}</span></div>
                 <div className="mg-room-field"><span className="mg-room-field-label">مستلم الإخطار</span><span className="mg-room-field-value">{r.opsCard?.alertRecipient || "—"}</span></div>
                 <div className="mg-room-field"><span className="mg-room-field-label">أمر شغل الطوارئ</span><span className="mg-room-field-value">{r.opsCard?.workOrderNo || "—"}</span></div>
@@ -1335,7 +1356,8 @@ function ReportsList({ reports, regions, currentUser, canEdit, onChanged }) {
           onSave={async (updated) => {
             const withTimeline = {
               ...updated,
-              opsCard: { ...emptyOpsCard(), ...(updated.opsCard || {}), reporterName: updated.reporterName || updated.opsCard?.reporterName || "" },
+              reportSenderName: updated.reportSenderName || updated.createdBy || currentUser.name,
+              opsCard: { ...emptyOpsCard(), ...(updated.opsCard || {}), reportSenderName: updated.reportSenderName || updated.createdBy || currentUser.name, reporterName: updated.reporterName || updated.opsCard?.reporterName || "" },
               timeline: [...(updated.timeline || []), { ts: Date.now(), event: "تعديل بيانات البلاغ", by: currentUser.name, note: "" }],
             };
             const next = reports.map((r) => (r.id === updated.id ? withTimeline : r));
@@ -1452,7 +1474,8 @@ function ExportExcelModal({ reports, regions, onClose }) {
   function doExport() {
     const rows = reports.filter(inPeriod).map((r) => ({
       "رقم البلاغ": r.crn || "",
-      "الاسم": r.reporterName,
+      "اسم العميل": r.reporterName,
+      "مُرسل البلاغ (المستخدم)": r.reportSenderName || r.createdBy || "",
       "الهاتف": r.phone,
       "رقم المشترك": r.subscriberNumber,
       "العنوان": r.address || "",
@@ -1543,7 +1566,8 @@ function CompleteReportForm({ report, onCancel, onConfirm }) {
 function ReportDetailModal({ report, regions, canEdit, isSuperAdmin, onClose, onSave, onDelete }) {
   const [form, setForm] = useState({
     ...report,
-    opsCard: { ...emptyOpsCard(), ...(report.opsCard || {}), reporterName: report.opsCard?.reporterName || report.reporterName || "" },
+    reportSenderName: report.reportSenderName || report.createdBy || "",
+    opsCard: { ...emptyOpsCard(), ...(report.opsCard || {}), reportSenderName: report.reportSenderName || report.createdBy || report.opsCard?.reportSenderName || "", reporterName: report.opsCard?.reporterName || report.reporterName || "" },
   });
   const [opsOpen, setOpsOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -1575,7 +1599,7 @@ function ReportDetailModal({ report, regions, canEdit, isSuperAdmin, onClose, on
       <div className="mg-grid2" style={{ marginBottom: 10 }}>
         <div>
           <label className="mg-label">
-            اسم المُبلِّغ{" "}
+            اسم العميل{" "}
             <span style={{ fontSize: 11, fontWeight: 700, color: "#D93025", background: "#FDECEA", borderRadius: 8, padding: "1px 7px", fontFamily: "monospace" }}>{form.crn}</span>
           </label>
           <input className="mg-input" disabled={!canEdit} value={form.reporterName} onChange={(e) => set("reporterName", e.target.value)} />
@@ -1808,9 +1832,9 @@ function printOpsCard(report, card, regions) {
   <div class="region-line">منطقة عمليات: ${escapeHtml(region?.name || "—")}</div>
 
   <table>
-    <tr><th>اسم المُبلِّغ</th><td>${escapeHtml(report.reporterName)}</td><th>العنوان</th><td>${escapeHtml(report.address || "")}</td></tr>
-    <tr><th>اسم العميل</th><td>${escapeHtml(report.subscriberNumber)}</td><th>الرقم الكودي</th><td>${escapeHtml(report.crn || "")}</td></tr>
-    <tr><th>تليفون</th><td>${escapeHtml(report.phone)}</td><th>رقم البلاغ</th><td>${escapeHtml(report.crn || "")}</td></tr>
+    <tr><th>اسم مُرسل البلاغ</th><td>${escapeHtml(report.reportSenderName || report.createdBy || "—")}</td><th>العنوان</th><td>${escapeHtml(report.address || "")}</td></tr>
+    <tr><th>اسم العميل</th><td>${escapeHtml(report.reporterName)}</td><th>الرقم الكودي</th><td>${escapeHtml(report.crn || "")}</td></tr>
+    <tr><th>تليفون العميل</th><td>${escapeHtml(report.phone)}</td><th>رقم البلاغ</th><td>${escapeHtml(report.crn || "")}</td></tr>
     <tr><th>موضوع البلاغ</th><td colspan="3">${escapeHtml(report.incidentType)}${report.details ? " — " + escapeHtml(report.details) : ""}</td></tr>
   </table>
 
@@ -1874,9 +1898,15 @@ function OpsCardFields({ card, canEdit, onChange }) {
 
   return (
     <div>
-      <div className="mg-room-field" style={{ marginBottom: 10, borderColor: "#bfd2f7", background: "#f8fbff" }}>
-        <label className="mg-label" style={{ marginBottom: 5 }}>اسم مُرسل البلاغ</label>
-        <input className="mg-input" disabled={!canEdit} value={card.reporterName || ""} onChange={(e) => setField("reporterName", e.target.value)} placeholder="اكتب اسم مُرسل البلاغ" />
+      <div className="mg-grid2" style={{ marginBottom: 10 }}>
+        <div className="mg-room-field" style={{ borderColor: "#c62828", background: "#fff8f7" }}>
+          <label className="mg-label" style={{ marginBottom: 5 }}>اسم مُرسل البلاغ (المستخدم المسجل)</label>
+          <div className="mg-room-field-value">{card.reportSenderName || "سيظهر تلقائياً من المستخدم المسجل"}</div>
+        </div>
+        <div className="mg-room-field" style={{ borderColor: "#bfd2f7", background: "#f8fbff" }}>
+          <label className="mg-label" style={{ marginBottom: 5 }}>اسم العميل</label>
+          <div className="mg-room-field-value">{card.reporterName || "غير مسجل"}</div>
+        </div>
       </div>
       <div className="mg-grid2" style={{ marginBottom: 10 }}>
         <div>
@@ -2440,6 +2470,7 @@ function SettingsPanel({ settings, onSaved }) {
     severityIcons: { ...settings.severityIcons },
     whatsappNumbers: migrateWhatsappNumbers(settings.whatsappNumbers),
     zoomLink: settings.zoomLink || "",
+    theme: { ...(defaultAppSettings().theme), ...(settings.theme || {}) },
   });
   const [saved, setSaved] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -2530,6 +2561,25 @@ function SettingsPanel({ settings, onSaved }) {
           />
         </div>
       ))}
+
+      <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px dashed #EBD9D6" }}>
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>🎨 تخصيص شكل وألوان الواجهة</div>
+        <p style={{ fontSize: 12.5, color: "#8A6C68", marginTop: 0, marginBottom: 12 }}>يمكنك تغيير لون الخلفية والألوان الرئيسية وشكل الخانات والأزرار. التغيير يطبق على البرنامج كله.</p>
+        <div className="mg-grid2" style={{ marginBottom: 10 }}>
+          <div><label className="mg-label">لون الواجهة الرئيسي</label><input type="color" className="mg-input" style={{ height: 44, padding: 4 }} value={form.theme.primary} onChange={(e) => setForm(f => ({ ...f, theme: { ...f.theme, primary: e.target.value } }))} /></div>
+          <div><label className="mg-label">لون الخلفية</label><input type="color" className="mg-input" style={{ height: 44, padding: 4 }} value={form.theme.bg} onChange={(e) => setForm(f => ({ ...f, theme: { ...f.theme, bg: e.target.value } }))} /></div>
+          <div><label className="mg-label">لون البطاقات والخانات</label><input type="color" className="mg-input" style={{ height: 44, padding: 4 }} value={form.theme.card} onChange={(e) => setForm(f => ({ ...f, theme: { ...f.theme, card: e.target.value } }))} /></div>
+          <div><label className="mg-label">لون الإبراز</label><input type="color" className="mg-input" style={{ height: 44, padding: 4 }} value={form.theme.accent} onChange={(e) => setForm(f => ({ ...f, theme: { ...f.theme, accent: e.target.value } }))} /></div>
+        </div>
+        <label className="mg-label">شكل الخانات والأزرار</label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
+          {[
+            ["square", "▣", "مربع"], ["rounded", "▢", "مستدير"], ["pill", "●", "بيضاوي"], ["hexagon", "⬢", "مسدس"]
+          ].map(([id, icon, label]) => (
+            <button type="button" key={id} className="mg-btn mg-btn-outline" style={{ justifyContent: "center", border: form.theme.shape === id ? "2px solid var(--mg-primary)" : undefined, background: form.theme.shape === id ? "#fff1f2" : undefined }} onClick={() => setForm(f => ({ ...f, theme: { ...f.theme, shape: id } }))}>{icon} {label}</button>
+          ))}
+        </div>
+      </div>
 
       <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px dashed #EBD9D6" }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>📱 أرقام واتساب تنبيهات الطوارئ</div>
@@ -2913,7 +2963,7 @@ export default function App() {
   const canEdit = ["super_admin", "manager", "response"].includes(currentUser.role);
 
   return (
-    <div className="mg-root">
+    <div className={`mg-root mg-theme-${settings.theme?.shape || "rounded"}`} style={themeCss(settings.theme)}>
       <GlobalStyle />
       {criticalAlert && (
         <div
